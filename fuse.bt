@@ -354,6 +354,7 @@ struct fuse_req {
 
 kprobe:fuse_request_send_background_locked,kprobe:__fuse_request_send
 {
-	@[((struct fuse_req *)arg1)->in.h.opcode] = count();
-	//@[pid] = count();
+	@fuseop[((struct fuse_req *)arg1)->in.h.opcode] = count();
+	@pid[pid] = count();
+	@comm[comm] = count()
 }
