@@ -1,3 +1,8 @@
+/*
+ * need to copy some definition from fuse_i.h for bpftrace to explain the structure
+ * https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/fs/fuse/fuse_i.h?h=v5.1.16
+ */
+
 #include <linux/fuse.h>
 #include <linux/fs.h>
 #include <linux/mount.h>
