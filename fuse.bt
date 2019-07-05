@@ -354,7 +354,37 @@ struct fuse_req {
 
 kprobe:fuse_request_send_background_locked,kprobe:__fuse_request_send
 {
-	@fuseop[((struct fuse_req *)arg1)->in.h.opcode] = count();
-	@pid[pid] = count();
-	@comm[comm] = count()
+	/* record breakdown by FUSE op code */
+	@fusereq_by_op[((struct fuse_req *)arg1)->in.h.opcode] = count();
+	/* encode pid and FUSE op code */	
+	@fusereq_by_pid_op[pid * 256 + ((struct fuse_req *)arg1)->in.h.opcode] = count();
+	/* record request count by pid */
+	//@fusereq_by_pid[pid] = count();
+	/* record pid and comm mapping. this is not accurate when pid overflow */
+	@pid_comm[pid] = comm;
+	/* record fuse request count by comm string */
+	@fusereq_comm[comm] = count();
 }
+
+/*
+kprobe:fuse_open
+{
+	//@fs_pid[pid] = count();
+	@fs_comm[comm] = count();
+}
+
+kprobe:fuse_lookup
+{
+	@fs_op["LOOKUP"] = count()
+}
+
+kprobe:d_lookup
+{
+	@fs_op["D_LOOKUP"] = count()
+}
+
+kprobe:vfs_path_lookup
+{
+	@fs_op["vfs_path_lookup"] = count()
+}
+*/
