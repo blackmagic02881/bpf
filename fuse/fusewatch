@@ -1,0 +1,77 @@
+#!/usr/bin/python
+#
+# report process which access fuse
+
+import threading
+import ctypes
+from time import sleep
+from Queue import Queue
+
+from bcc import BPF
+
+# load BPF program
+b = BPF(text="""
+#include <uapi/linux/ptrace.h>
+
+BPF_HASH(stats, u32);
+
+void do_count(struct pt_regs *ctx) {
+	u32 pid = bpf_get_current_pid_tgid();
+	stats.increment(pid);
+}
+""")
+b.attach_kprobe(event="__fuse_request_send", fn_name="do_count")
+b.attach_kprobe(event="fuse_request_send_background_locked", fn_name="do_count")
+
+# one issue here is pid will overflow and eventually same pid might represent 
+# different process
+pids = dict()
+
+def fetch_cmdline(pid):
+    pid = pid.value
+    if pid in pids:
+        return
+    fn ='/proc/{}/cmdline'.format(pid)
+    try:
+        with open(fn) as f:
+            line = f.readline()
+            pids[pid] = line
+    except:
+        print('failed to process {}'.format(fn))
+
+def worker():
+    while True:
+        item = q.get()
+        if item is None:
+            break
+        pid, cnt = item
+        fetch_cmdline(pid)
+        q.task_done()
+
+num_worker_threads = 4
+threads = []
+
+q = Queue()
+for i in range(num_worker_threads):
+    t = threading.Thread(target=worker)
+    t.daemon = True
+    t.start()
+    threads.append(t)
+
+print("Tracing... Ctrl-C to end.")
+
+while (1):
+    try:
+        sleep(1)
+    except KeyboardInterrupt:
+	for i in range(num_worker_threads):
+            q.put(None)
+        for t in threads:
+            t.join()
+        for k, v in pids.items():
+            print('{}:{}'.format(k,v))
+        exit()
+
+    for k, v in b["stats"].items():
+        q.put((k, v))
+    b["stats"].clear()
